@@ -1,0 +1,13 @@
+{
+  "name": "FormaCraft 3D",
+  "description": "Luxury 3D design platform for couturiers and charpentiers. Create, visualize, and export realistic fashion and furniture models with AI assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "3D Rendering",
+    "CAD Controls",
+    "AI Assistance"
+  ]
+}

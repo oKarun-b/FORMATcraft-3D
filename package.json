@@ -59,8 +59,10 @@
     "stripe": "^22.1.1",
     "tailwind-merge": "^3.5.0",
     "three": "^0.184.0",
+    "three-gpu-pathtracer": "^0.0.24",
     "vite": "^6.2.3",
     "zod": "^3.23.8",
+    "zundo": "^2.3.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

@@ -5,8 +5,16 @@ import { useEditorStore } from '../store/useEditorStore';
 export const PatternEditor = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvas = useRef<fabric.Canvas | null>(null);
-  const { mode, selectedColor, setTexture } = useEditorStore();
+  const isInternalChange = useRef(false);
+  const mode = useEditorStore((state) => state.mode);
+  const selectedColor = useEditorStore((state) => state.selectedColor);
+  const setTexture = useEditorStore((state) => state.setTexture);
+  const patternData = useEditorStore((state) => state.patternData);
+  const setPatternData = useEditorStore((state) => state.setPatternData);
   const lastTexture = useRef<string | null>(null);
+
+  const [uploadedTextures, setUploadedTextures] = React.useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fabricPresets = [
     { name: 'Silk', color: '#f8fafc', texture: 'https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=1080' },
@@ -15,32 +23,93 @@ export const PatternEditor = () => {
     { name: 'Velvet', color: '#4c1d95', texture: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1080' },
   ];
 
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        setUploadedTextures(prev => [url, ...prev]);
+        handleFabricDrop(url); // Auto-apply to selection
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Initialize Canvas
   useEffect(() => {
+    // Global Fabric Settings to prevent tainted canvas issue
+    fabric.Object.prototype.transparentCorners = false;
+    fabric.Object.prototype.objectCaching = false;
+    (fabric.Image.prototype as any).crossOrigin = 'anonymous';
+    
     if (canvasRef.current && !fabricCanvas.current) {
       fabricCanvas.current = new fabric.Canvas(canvasRef.current, {
-        width: 500,
-        height: 700,
-        backgroundColor: '#0a0a0a',
+        width: 450,
+        height: 650,
+        backgroundColor: '#000',
       });
 
-      // Add a default pattern piece (Front Panel)
-      const frontPanel = new fabric.Polygon([
-        { x: 150, y: 50 },
-        { x: 350, y: 50 },
-        { x: 400, y: 400 },
-        { x: 100, y: 400 },
-      ], {
-        left: 50,
-        top: 50,
-        fill: selectedColor + '33',
-        stroke: selectedColor,
-        strokeWidth: 2,
-        strokeDashArray: [5, 5], // Stitching visualization
-      });
+      const updateStore = () => {
+        if (!fabricCanvas.current || isInternalChange.current) return;
+        const currentData = fabricCanvas.current.toJSON();
+        
+        isInternalChange.current = true;
+        setPatternData(currentData);
+        setTimeout(() => { isInternalChange.current = false; }, 200);
+      };
 
-      fabricCanvas.current.add(frontPanel);
+      // Add a default pattern piece (Front Panel) if no patternData exists
+      if (!patternData) {
+        const frontPanel = new fabric.Polygon([
+          { x: 150, y: 50 },
+          { x: 350, y: 50 },
+          { x: 400, y: 400 },
+          { x: 100, y: 400 },
+        ], {
+          left: 50,
+          top: 50,
+          fill: selectedColor + '33',
+          stroke: selectedColor,
+          strokeWidth: 2,
+          strokeDashArray: [5, 5],
+        });
+
+        fabricCanvas.current.add(frontPanel);
+        setPatternData(fabricCanvas.current.toJSON());
+      } else {
+        isInternalChange.current = true;
+        fabricCanvas.current.loadFromJSON(patternData, () => {
+          fabricCanvas.current?.renderAll();
+          setTimeout(() => { isInternalChange.current = false; }, 200);
+        });
+      }
+
+      fabricCanvas.current.on('object:modified', updateStore);
+      fabricCanvas.current.on('object:added', updateStore);
+      fabricCanvas.current.on('object:removed', updateStore);
     }
+
+    return () => {
+      // fabricCanvas.current?.dispose(); // Keep it for now to avoid re-init issues in dev
+    };
   }, []);
+
+  // Sync from patternData (Undo/Redo)
+  useEffect(() => {
+    if (fabricCanvas.current && patternData && !isInternalChange.current) {
+      const currentJSON = JSON.stringify(fabricCanvas.current.toJSON());
+      const newJSON = JSON.stringify(patternData);
+      
+      if (currentJSON !== newJSON) {
+        isInternalChange.current = true;
+        fabricCanvas.current.loadFromJSON(patternData, () => {
+          fabricCanvas.current?.renderAll();
+          setTimeout(() => { isInternalChange.current = false; }, 100);
+        });
+      }
+    }
+  }, [patternData]);
 
   useEffect(() => {
     if (fabricCanvas.current) {
@@ -49,8 +118,13 @@ export const PatternEditor = () => {
         activeObject.set('stroke', selectedColor);
         activeObject.set('fill', selectedColor + '33');
         fabricCanvas.current.renderAll();
+        // Update store for color change too
+        if (!isInternalChange.current) {
+          isInternalChange.current = true;
+          setPatternData(fabricCanvas.current.toJSON());
+          setTimeout(() => { isInternalChange.current = false; }, 50);
+        }
       } else {
-        // Apply to the first object if nothing is selected
         const firstObj = fabricCanvas.current.getObjects()[0];
         if (firstObj) {
           firstObj.set('stroke', selectedColor);
@@ -71,12 +145,18 @@ export const PatternEditor = () => {
           const patternSourceCanvas = new fabric.StaticCanvas(null, { width: 100, height: 100 });
           patternSourceCanvas.add(img);
           const pattern = new fabric.Pattern({
-            source: patternSourceCanvas.getElement(),
+            source: patternSourceCanvas.getElement() as HTMLCanvasElement,
             repeat: 'repeat'
           });
           activeObject.set('fill', pattern);
           fabricCanvas.current?.renderAll();
-        });
+          
+          if (!isInternalChange.current) {
+            isInternalChange.current = true;
+            setPatternData(fabricCanvas.current?.toJSON());
+            setTimeout(() => { isInternalChange.current = false; }, 50);
+          }
+        }, { crossOrigin: 'anonymous' });
       }
     }
   };
@@ -167,21 +247,70 @@ export const PatternEditor = () => {
           <div className="p-4 border-b border-white/5">
              <span className="text-[8px] font-mono font-bold text-white/20 tracking-[0.3em] uppercase">Materials.lib</span>
           </div>
-          <div className="flex-1 p-3 space-y-3">
-            {fabricPresets.map((f) => (
-              <div 
-                key={f.name}
-                onClick={() => handleFabricDrop(f.texture)}
-                className="group cursor-pointer"
+          <div className="flex-1 p-3 space-y-4 overflow-y-auto no-scrollbar">
+            {/* Upload Section */}
+            <div className="space-y-2">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-4 border border-dashed border-white/10 rounded-sm hover:border-gold/30 hover:bg-white/[0.02] transition-all group flex flex-col items-center justify-center gap-2"
               >
-                <div className="relative aspect-video rounded-sm overflow-hidden border border-white/5 transition-all duration-500 group-hover:border-gold/30">
-                  <img src={f.texture} alt={f.name} className="w-full h-full object-cover grayscale opacity-30 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700 scale-110 group-hover:scale-100" />
-                  <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors flex items-end p-2">
-                    <span className="text-[7px] font-mono font-bold text-white/20 group-hover:text-white uppercase tracking-widest">{f.name}</span>
-                  </div>
+                <div className="text-white/20 group-hover:text-gold transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                </div>
+                <span className="text-[7px] font-mono text-white/20 uppercase tracking-widest group-hover:text-white/60">Upload_Source</span>
+              </button>
+            </div>
+
+            {/* Custom Textures */}
+            {uploadedTextures.length > 0 && (
+              <div className="space-y-3">
+                <span className="text-[7px] font-mono text-white/10 uppercase tracking-widest block border-b border-white/5 pb-1">User_Assets</span>
+                <div className="grid grid-cols-1 gap-3">
+                  {uploadedTextures.map((url, i) => (
+                    <div 
+                      key={i}
+                      onClick={() => handleFabricDrop(url)}
+                      className="group cursor-pointer"
+                    >
+                      <div className="relative aspect-video rounded-sm overflow-hidden border border-white/10 transition-all duration-500 group-hover:border-gold/30">
+                        <img src={url} alt={`Upload ${i}`} className="w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-100" />
+                        <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors flex items-end p-2">
+                          <span className="text-[7px] font-mono font-bold text-white/20 group-hover:text-white uppercase tracking-widest">DRIVE_0{i+1}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* Presets */}
+            <div className="space-y-3">
+              <span className="text-[7px] font-mono text-white/10 uppercase tracking-widest block border-b border-white/5 pb-1">Library_Ref</span>
+              <div className="grid grid-cols-1 gap-3">
+                {fabricPresets.map((f) => (
+                  <div 
+                    key={f.name}
+                    onClick={() => handleFabricDrop(f.texture)}
+                    className="group cursor-pointer"
+                  >
+                    <div className="relative aspect-video rounded-sm overflow-hidden border border-white/5 transition-all duration-500 group-hover:border-gold/30">
+                      <img src={f.texture} alt={f.name} className="w-full h-full object-cover grayscale opacity-30 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700 scale-110 group-hover:scale-100" />
+                      <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors flex items-end p-2">
+                        <span className="text-[7px] font-mono font-bold text-white/20 group-hover:text-white uppercase tracking-widest">{f.name}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

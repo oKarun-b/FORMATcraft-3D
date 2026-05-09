@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Scissors, 
   Box, 
@@ -11,42 +11,92 @@ import {
   X,
   Database,
   Layers,
-  Zap
+  Zap,
+  Undo2,
+  Redo2,
+  Library,
+  History as HistoryIcon
 } from 'lucide-react';
 import { Scene3D } from '../components/Scene3D';
 import { PatternEditor } from '../components/PatternEditor';
+import { AssetLibrary } from '../components/AssetLibrary';
+import { VersionHistory } from '../components/VersionHistory';
+import { SceneOutliner } from '../components/SceneOutliner';
+import { PropertiesPanel } from '../components/PropertiesPanel';
+import { RangeControl, ToggleControl } from '../components/ui/StudioPrimitives';
 import { useEditorStore } from '../store/useEditorStore';
+import { useStore } from 'zustand';
 
 export const StudioPage = () => {
   const [showExportModal, setShowExportModal] = useState(false);
-  const { 
-    mode, 
-    setMode, 
-    selectedColor, 
-    setSelectedColor,
-    garmentSize,
-    setGarmentSize,
-    clothDeformation,
-    setClothDeformation,
-    showMannequin,
-    setShowMannequin,
-    showStitching,
-    setShowStitching,
-    furnitureWidth,
-    setFurnitureWidth,
-    furnitureHeight,
-    setFurnitureHeight,
-    furnitureDepth,
-    setFurnitureDepth,
-    isExploded,
-    setIsExploded,
-    woodTexture,
-    setWoodTexture,
-    wireframe,
-    setWireframe,
-    autoRotate,
-    setAutoRotate
-  } = useEditorStore();
+  const undo = useStore(useEditorStore.temporal, (state) => state.undo);
+  const redo = useStore(useEditorStore.temporal, (state) => state.redo);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+  
+  const mode = useEditorStore((state) => state.mode);
+  const setMode = useEditorStore((state) => state.setMode);
+  const isAssetLibraryOpen = useEditorStore((state) => state.isAssetLibraryOpen);
+  const setIsAssetLibraryOpen = useEditorStore((state) => state.setIsAssetLibraryOpen);
+  const isHistoryOpen = useEditorStore((state) => state.isHistoryOpen);
+  const setIsHistoryOpen = useEditorStore((state) => state.setIsHistoryOpen);
+  const isOutlinerOpen = useEditorStore((state) => state.isOutlinerOpen);
+  const setIsOutlinerOpen = useEditorStore((state) => state.setIsOutlinerOpen);
+  const selectedColor = useEditorStore((state) => state.selectedColor);
+  const setSelectedColor = useEditorStore((state) => state.setSelectedColor);
+  const garmentSize = useEditorStore((state) => state.garmentSize);
+  const setGarmentSize = useEditorStore((state) => state.setGarmentSize);
+  const clothDeformation = useEditorStore((state) => state.clothDeformation);
+  const setClothDeformation = useEditorStore((state) => state.setClothDeformation);
+  const showMannequin = useEditorStore((state) => state.showMannequin);
+  const setShowMannequin = useEditorStore((state) => state.setShowMannequin);
+  const showStitching = useEditorStore((state) => state.showStitching);
+  const setShowStitching = useEditorStore((state) => state.setShowStitching);
+  const furnitureWidth = useEditorStore((state) => state.furnitureWidth);
+  const setFurnitureWidth = useEditorStore((state) => state.setFurnitureWidth);
+  const furnitureHeight = useEditorStore((state) => state.furnitureHeight);
+  const setFurnitureHeight = useEditorStore((state) => state.setFurnitureHeight);
+  const furnitureDepth = useEditorStore((state) => state.furnitureDepth);
+  const setFurnitureDepth = useEditorStore((state) => state.setFurnitureDepth);
+  const isExploded = useEditorStore((state) => state.isExploded);
+  const setIsExploded = useEditorStore((state) => state.setIsExploded);
+  const woodTexture = useEditorStore((state) => state.woodTexture);
+  const setWoodTexture = useEditorStore((state) => state.setWoodTexture);
+  const wireframe = useEditorStore((state) => state.wireframe);
+  const setWireframe = useEditorStore((state) => state.setWireframe);
+  const autoRotate = useEditorStore((state) => state.autoRotate);
+  const setAutoRotate = useEditorStore((state) => state.setAutoRotate);
+  const showGrid = useEditorStore((state) => state.showGrid);
+  const setShowGrid = useEditorStore((state) => state.setShowGrid);
+  const gridSize = useEditorStore((state) => state.gridSize);
+  const setGridSize = useEditorStore((state) => state.setGridSize);
+  
+  const isRendering = useEditorStore((state) => state.isRendering);
+  const setIsRendering = useEditorStore((state) => state.setIsRendering);
+  const renderProgress = useEditorStore((state) => state.renderProgress);
+  const renderSamples = useEditorStore((state) => state.renderSamples);
+
+  const handleStartRender = () => {
+    setIsRendering(true);
+  };
+
+  const handleStopRender = () => {
+    setIsRendering(false);
+  };
 
   return (
     <motion.div
@@ -71,6 +121,24 @@ export const StudioPage = () => {
               icon={<Box size={18} />}
               label="WOOD"
             />
+            <StudioTool 
+              active={isAssetLibraryOpen} 
+              onClick={() => setIsAssetLibraryOpen(!isAssetLibraryOpen)}
+              icon={<Library size={18} />}
+              label="ASSETS"
+            />
+            <StudioTool 
+              active={isHistoryOpen} 
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              icon={<HistoryIcon size={18} />}
+              label="HISTORY"
+            />
+            <StudioTool 
+              active={isOutlinerOpen} 
+              onClick={() => setIsOutlinerOpen(!isOutlinerOpen)}
+              icon={<Layers size={18} />}
+              label="SCENE"
+            />
           </div>
           
           <div className="w-8 h-px bg-white/10" />
@@ -88,9 +156,30 @@ export const StudioPage = () => {
         </div>
 
         {/* 2D Design Workspace (Collapsible relative to mode) */}
-        {mode === 'fashion' && (
+        {mode === 'fashion' && !isAssetLibraryOpen && !isHistoryOpen && (
           <div className="hidden lg:block w-[450px] border-r border-white/5 bg-[#050505]">
             <PatternEditor />
+          </div>
+        )}
+
+        {/* Asset Library Workspace */}
+        {isAssetLibraryOpen && !isHistoryOpen && !isOutlinerOpen && (
+          <div className="hidden lg:block w-[320px] border-r border-white/5 bg-[#050505]">
+            <AssetLibrary />
+          </div>
+        )}
+
+        {/* Version History Workspace */}
+        {isHistoryOpen && !isOutlinerOpen && (
+          <div className="hidden lg:block w-[320px] border-r border-white/5 bg-[#050505]">
+            <VersionHistory />
+          </div>
+        )}
+
+        {/* Scene Outliner Workspace */}
+        {isOutlinerOpen && (
+          <div className="hidden lg:block w-[320px] border-r border-white/5 bg-[#050505]">
+            <SceneOutliner />
           </div>
         )}
 
@@ -120,6 +209,21 @@ export const StudioPage = () => {
 
           <div className="absolute top-4 right-4 z-10 flex gap-2">
             <div className="flex bg-black/40 backdrop-blur-md border border-white/10 rounded-lg p-1">
+              <button 
+                onClick={() => undo()}
+                className="p-2 rounded-md text-white/40 hover:text-white hover:bg-white/5 transition-all"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 size={14} />
+              </button>
+              <button 
+                onClick={() => redo()}
+                className="p-2 rounded-md text-white/40 hover:text-white hover:bg-white/5 transition-all"
+                title="Redo (Ctrl+Y)"
+              >
+                <Redo2 size={14} />
+              </button>
+              <div className="w-px h-full bg-white/10 mx-1" />
               <button className="p-2 rounded-md text-white/40 hover:text-white hover:bg-white/5 transition-all">
                 <Share2 size={14} />
               </button>
@@ -130,8 +234,58 @@ export const StudioPage = () => {
               >
                 <Download size={14} /> EXPORT
               </button>
+              <button 
+                onClick={handleStartRender}
+                className="px-4 py-1.5 rounded-md bg-white/10 text-white font-bold text-[9px] flex items-center gap-2 hover:bg-white/20 transition-all tracking-widest"
+              >
+                <Zap size={14} className="text-gold" /> STUDIO_RENDER
+              </button>
             </div>
           </div>
+
+          <AnimatePresence>
+            {isRendering && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 bg-[#000]/90 backdrop-blur-xl flex flex-col items-center justify-center p-12"
+              >
+                <div className="w-full max-w-md space-y-8 text-center">
+                  <div className="relative inline-block">
+                    <div className="absolute inset-0 bg-gold/20 blur-3xl rounded-full" />
+                    <Zap size={48} className="text-gold relative animate-pulse" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h2 className="text-xl font-bold tracking-[0.5em] text-white uppercase italic">Studio_Path_Tracer</h2>
+                    <p className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Accumulating_Samples // HQ_PASS_ACTIVE</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                      <motion.div 
+                        className="absolute h-full bg-gold"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${renderProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between font-mono text-[9px] text-white/20">
+                      <span>PROGRESS: {Math.round(renderProgress)}%</span>
+                      <span>SAMPLES: {renderSamples} / 50</span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={handleStopRender}
+                    className="px-10 py-3 border border-white/10 rounded-sm text-[10px] font-bold text-white/40 hover:text-white hover:border-gold/40 transition-all uppercase tracking-[0.3em]"
+                  >
+                    Exit_Renderer
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="flex-1 min-h-0 cursor-crosshair">
             <Scene3D />
@@ -160,155 +314,7 @@ export const StudioPage = () => {
 
         {/* Right Inspector Sidebar */}
         <div className="hidden xl:flex w-72 border-l border-white/5 bg-[#000] flex-col overflow-hidden">
-          <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-            <span className="text-[10px] font-bold tracking-[0.4em] uppercase text-white/30 font-mono">Properties.v4</span>
-            <div className="flex gap-1.5 opacity-30">
-              <div className="w-1.5 h-1.5 rounded-full bg-white" />
-              <div className="w-1.5 h-1.5 rounded-full bg-white" />
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-5 space-y-10 no-scrollbar pb-24">
-            {/* Global Settings */}
-            <PropertySection title="Base Material">
-              <div className="grid grid-cols-5 gap-3">
-                {['#ffffff', '#f59e0b', '#09090B', '#3b82f6', '#ef4444'].map(color => (
-                  <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`aspect-square rounded-full border-2 transition-all ${selectedColor === color ? 'border-gold scale-110 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-white/5 hover:border-white/20'}`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </PropertySection>
-
-            {mode === 'fashion' ? (
-              <>
-                <PropertySection title="Simulation Engine">
-                  <div className="space-y-6">
-                    <RangeControl 
-                      label="Garment Scale" 
-                      value={Math.round(garmentSize * 100)} 
-                      onChange={(v) => setGarmentSize(v / 100)}
-                    />
-                    <RangeControl 
-                      label="Cloth Physics" 
-                      value={Math.round(clothDeformation * 100)} 
-                      onChange={(v) => setClothDeformation(v / 100)}
-                    />
-                  </div>
-                </PropertySection>
-
-                <PropertySection title="Visualization">
-                  <div className="space-y-3">
-                    <ToggleControl 
-                      label="Mannequin Body" 
-                      active={showMannequin} 
-                      onClick={() => setShowMannequin(!showMannequin)} 
-                    />
-                    <ToggleControl 
-                      label="Stitching Overlay" 
-                      active={showStitching} 
-                      onClick={() => setShowStitching(!showStitching)} 
-                    />
-                    <ToggleControl 
-                      label="Mesh Wireframe" 
-                      active={wireframe} 
-                      onClick={() => setWireframe(!wireframe)} 
-                    />
-                  </div>
-                </PropertySection>
-              </>
-            ) : (
-              <>
-                <PropertySection title="Geometry Architecture">
-                  <div className="space-y-6">
-                    <RangeControl 
-                      label="Width" 
-                      value={Math.round(furnitureWidth * 40)} 
-                      onChange={(v) => setFurnitureWidth(v / 40)}
-                    />
-                    <RangeControl 
-                      label="Height" 
-                      value={Math.round(furnitureHeight * 50)} 
-                      onChange={(v) => setFurnitureHeight(v / 50)}
-                    />
-                    <RangeControl 
-                      label="Depth" 
-                      value={Math.round(furnitureDepth * 80)} 
-                      onChange={(v) => setFurnitureDepth(v / 80)}
-                    />
-                  </div>
-                </PropertySection>
-
-                <PropertySection title="Wood Selection">
-                  <div className="grid grid-cols-3 gap-2">
-                    {['oak', 'walnut', 'pine'].map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setWoodTexture(t)}
-                        className={`py-2 rounded-lg border text-[9px] uppercase tracking-widest transition-all ${woodTexture === t ? 'bg-gold/10 border-gold text-gold' : 'bg-white/5 border-white/5 text-white/40 hover:text-white'}`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </PropertySection>
-
-                <PropertySection title="Structural View">
-                  <div className="space-y-3">
-                    <ToggleControl 
-                      label="Exploded View" 
-                      active={isExploded} 
-                      onClick={() => setIsExploded(!isExploded)} 
-                    />
-                    <ToggleControl 
-                      label="Wireframe Mode" 
-                      active={wireframe} 
-                      onClick={() => setWireframe(!wireframe)} 
-                    />
-                  </div>
-                </PropertySection>
-              </>
-            )}
-
-            <PropertySection title="Scene Graphics">
-              <ToggleControl 
-                label="Auto-Rotation" 
-                active={autoRotate} 
-                onClick={() => setAutoRotate(!autoRotate)} 
-              />
-            </PropertySection>
-
-            <PropertySection title="Analytics_Core">
-              <div className="p-4 rounded-md bg-white/[0.02] border border-white/5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Cpu size={12} className="text-gold/60" />
-                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-[0.2em] italic">Intelligence_Active</span>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-[8px] font-mono">
-                    <span className="text-white/20">STRESS_TEST</span>
-                    <span className="text-green-500">PASS</span>
-                  </div>
-                  <div className="flex justify-between text-[8px] font-mono">
-                    <span className="text-white/20">DENSITY_VAL</span>
-                    <span className="text-white/60">0.84_g/cm³</span>
-                  </div>
-                  <div className="h-0.5 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-gold/40 animate-[progress_3s_infinite_linear]" style={{ width: '65%' }} />
-                  </div>
-                </div>
-              </div>
-            </PropertySection>
-          </div>
-
-          <div className="mt-auto p-4 border-t border-white/5 bg-black/40 backdrop-blur-xl">
-            <button className="w-full py-3.5 bg-white text-black text-[10px] font-bold rounded-sm uppercase tracking-[0.4em] hover:bg-gold transition-all duration-300 shadow-[0_10px_30px_rgba(255,255,255,0.05)] active:scale-95">
-              Compile_Output
-            </button>
-          </div>
+          <PropertiesPanel />
         </div>
       </div>
     </motion.div>
@@ -336,48 +342,6 @@ const StudioSideIcon = ({ icon, label }: { icon: React.ReactNode, label: string 
   </button>
 );
 
-const PropertySection = ({ title, children }: { title: string, children: React.ReactNode }) => (
-  <div className="flex flex-col gap-5">
-    <div className="flex items-center gap-3">
-      <span className="text-[9px] font-mono text-white/40 tracking-[0.3em] uppercase shrink-0 font-black">{title}</span>
-      <div className="h-px bg-white/5 flex-1" />
-    </div>
-    <div className="px-1">
-      {children}
-    </div>
-  </div>
-);
-
-const RangeControl = ({ label, value, onChange }: { label: string, value: number, onChange: (v: number) => void }) => (
-  <div className="space-y-3">
-    <div className="flex justify-between items-center text-[9px] font-mono">
-      <span className="text-white/20 uppercase tracking-widest font-medium">{label}</span>
-      <span className="text-gold/60 font-bold tabular-nums">{value}</span>
-    </div>
-    <div className="relative flex items-center">
-      <input 
-        type="range"
-        min="1"
-        max="100"
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        className="w-full h-[3px] bg-white/5 rounded-full appearance-none cursor-crosshair accent-gold hover:accent-gold-light transition-all range-sm"
-      />
-    </div>
-  </div>
-);
-
-const ToggleControl = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
-  <button 
-    onClick={onClick}
-    className="w-full group flex items-center justify-between py-2 transition-all"
-  >
-    <span className="text-[9px] font-mono text-white/20 uppercase tracking-widest group-hover:text-white/60 transition-colors">{label}</span>
-    <div className={`w-8 h-4 rounded-full p-0.5 transition-all duration-300 ${active ? 'bg-gold/40' : 'bg-white/5'}`}>
-      <div className={`w-3 h-3 rounded-full transition-all duration-300 ${active ? 'translate-x-4 bg-gold shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'translate-x-0 bg-white/20'}`} />
-    </div>
-  </button>
-);
 
 const ExportModal = ({ onClose }: { onClose: () => void }) => {
   const [format, setFormat] = useState('GLTF');

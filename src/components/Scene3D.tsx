@@ -12,16 +12,26 @@ import {
   useGLTF,
   Loader as DreiLoader,
   Grid,
-  TransformControls
+  TransformControls,
+  Clone
 } from '@react-three/drei';
 import { RotateCcw, X } from 'lucide-react';
 import TWEEN from '@tweenjs/tween.js';
 
 // Advanced Model Loader with Draco support
-// Example Usage: <AdvancedModel url="/models/cabinet-draco.glb" />
-export const AdvancedModel = ({ url, ...props }: { url: string } & any) => {
-  const { scene } = useGLTF(url, true) as any; // Draco is enabled by default in useGLTF if provided
-  return <primitive object={scene} {...props} />;
+export const AdvancedModel = ({ url, roughness = 0.5, metalness = 0.2, ...props }: { url: string, roughness?: number, metalness?: number } & any) => {
+  const { scene } = useGLTF(url, true) as any;
+  
+  useEffect(() => {
+    scene.traverse((child: any) => {
+      if (child.isMesh && child.material) {
+        child.material.roughness = roughness;
+        child.material.metalness = metalness;
+      }
+    });
+  }, [scene, roughness, metalness]);
+
+  return <Clone object={scene} {...props} />;
 };
 
 // Preload assets for better UX
@@ -140,7 +150,7 @@ const Mannequin = () => {
 };
 
 const Garment = ({ type, color, textureMap, roughness, wireframe, distort, isRendering }: any) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const { mannequinBodyType } = useEditorStore();
 
   const getCollisionParams = () => {
@@ -160,15 +170,16 @@ const Garment = ({ type, color, textureMap, roughness, wireframe, distort, isRen
   const materialProps = {
     map: textureMap,
     color,
-    roughness,
+    roughness: roughness ?? 0.6,
     metalness: 0.05,
     side: THREE.DoubleSide,
-    wireframe
+    wireframe,
+    emissive: new THREE.Color(0x000000),
   };
 
   return (
     <group position={[0, 1.1, 0]}>
-      <mesh ref={meshRef} castShadow receiveShadow>
+      <group ref={groupRef}>
         {type === 'pants' ? (
           <group position={[0, -0.7, 0]}>
              {/* Left Leg */}
@@ -226,12 +237,12 @@ const Garment = ({ type, color, textureMap, roughness, wireframe, distort, isRen
             ))}
           </group>
         )}
-      </mesh>
+      </group>
     </group>
   );
 };
 
-const Model = ({ scale = 1, roughness = 0.2 }: { scale?: number, roughness?: number }) => {
+const Model = ({ scale = 1, roughness = 0.7 }: { scale?: number, roughness?: number }) => {
   const { 
     mode, 
     selectedColor, 
@@ -479,7 +490,123 @@ const CameraController = () => {
   return null;
 };
 
-export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1, roughness = 0.2 }: { exposure?: number, environment?: string, scale?: number, roughness?: number }) => {
+const PlacedAssetItem = ({ 
+  pa, 
+  isSelected, 
+  transformMode, 
+  snapToGrid, 
+  gridSize, 
+  updatePlacedAsset, 
+  removePlacedAsset, 
+  setSelectedPlacedAssetId,
+  isRendering
+}: any) => {
+  const groupRef = useRef<THREE.Group>(null);
+
+  const onTransform = () => {
+    if (groupRef.current) {
+      const { position, rotation, scale } = groupRef.current;
+      
+      let finalPos: [number, number, number] = [position.x, position.y, position.z];
+      if (snapToGrid && transformMode === 'translate') {
+        const snap = gridSize / 20 * 0.5;
+        finalPos = finalPos.map(v => Math.round(v / snap) * snap) as [number, number, number];
+      }
+
+      updatePlacedAsset(pa.id, {
+        position: finalPos,
+        rotation: [rotation.x, rotation.y, rotation.z],
+        scale: [scale.x, scale.y, scale.z]
+      });
+    }
+  };
+
+  return (
+    <group 
+      ref={groupRef}
+      position={pa.position}
+      rotation={pa.rotation}
+      scale={pa.scale}
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedPlacedAssetId(pa.id);
+      }}
+    >
+      <AdvancedModel 
+        url={pa.asset.url} 
+        roughness={pa.roughness ?? 0.5} 
+        metalness={pa.metalness ?? 0.2} 
+      />
+      
+      {!isRendering && isSelected && (
+        <TransformControls 
+          object={groupRef.current || undefined}
+          mode={transformMode}
+          onMouseUp={onTransform}
+          size={0.6}
+          translationSnap={snapToGrid ? (gridSize / 20 * 0.5) : null}
+        />
+      )}
+      
+      {!isRendering && (
+        <Html position={[0, 1.2, 0]} center>
+          <div className="flex flex-col gap-2 items-center">
+            {isSelected && (
+              <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-lg p-3 flex flex-col gap-3 min-w-[140px] pointer-events-auto shadow-2xl">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[8px] font-mono uppercase tracking-widest text-white/40">
+                    <span>Roughness</span>
+                    <span className="text-gold">{(pa.roughness ?? 0.5).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01"
+                    value={pa.roughness ?? 0.5}
+                    onChange={(e) => updatePlacedAsset(pa.id, { roughness: parseFloat(e.target.value) })}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="w-full h-1 bg-white/10 rounded-full appearance-none accent-gold cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[8px] font-mono uppercase tracking-widest text-white/40">
+                    <span>Metalness</span>
+                    <span className="text-gold">{(pa.metalness ?? 0.2).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01"
+                    value={pa.metalness ?? 0.2}
+                    onChange={(e) => updatePlacedAsset(pa.id, { metalness: parseFloat(e.target.value) })}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="w-full h-1 bg-white/10 rounded-full appearance-none accent-gold cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+            
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                removePlacedAsset(pa.id);
+              }}
+              className={`bg-black/60 border border-white/10 rounded-full p-1.5 transition-all
+                ${isSelected ? 'text-gold border-gold scale-110' : 'text-white/40 hover:text-red-500 opacity-0 group-hover:opacity-100'}
+              `}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
+export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1, roughness = 0.7 }: { exposure?: number, environment?: string, scale?: number, roughness?: number }) => {
   const mode = useEditorStore((state) => state.mode);
   const showGrid = useEditorStore((state) => state.showGrid);
   const gridSize = useEditorStore((state) => state.gridSize);
@@ -494,6 +621,7 @@ export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1,
   
   const snapToGrid = useEditorStore((state) => state.snapToGrid);
   
+  const showEnvironmentBackground = useEditorStore((state) => state.showEnvironmentBackground);
   const setTexture = useEditorStore((state) => state.setTexture);
   const placedAssets = useEditorStore((state) => state.placedAssets);
   const addPlacedAsset = useEditorStore((state) => state.addPlacedAsset);
@@ -506,7 +634,6 @@ export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1,
   const sceneObjectVisibility = useEditorStore((state) => state.sceneObjectVisibility);
   
   const controlsRef = useRef<any>(null);
-  const transformRef = useRef<any>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -552,24 +679,6 @@ export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1,
     e.dataTransfer.dropEffect = 'copy';
   };
 
-  const onTransform = () => {
-    if (transformRef.current && selectedPlacedAssetId) {
-      const { position, rotation, scale } = transformRef.current.object;
-      
-      let finalPos = [position.x, position.y, position.z];
-      if (snapToGrid && transformMode === 'translate') {
-        const snap = gridSize / 20 * 0.5; // Match grid calculation
-        finalPos = finalPos.map(v => Math.round(v / snap) * snap);
-      }
-
-      updatePlacedAsset(selectedPlacedAssetId, {
-        position: finalPos as [number, number, number],
-        rotation: [rotation.x, rotation.y, rotation.z],
-        scale: [scale.x, scale.y, scale.z]
-      });
-    }
-  };
-
   const resetCamera = () => {
     if (controlsRef.current) {
       controlsRef.current.reset();
@@ -583,21 +692,33 @@ export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1,
       onDrop={handleDrop}
       onClick={() => setSelectedPlacedAssetId(null)}
     >
-      <Canvas shadows={{ type: THREE.PCFShadowMap }} dpr={[1, 2]} gl={{ antialias: false, stencil: false, depth: true }} onPointerMissed={() => setSelectedPlacedAssetId(null)}>
+      <Canvas 
+        shadows={{ type: THREE.PCFShadowMap }} 
+        dpr={[1, 2]} 
+        gl={{ 
+          antialias: false, 
+          stencil: false, 
+          depth: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.2
+        }} 
+        onPointerMissed={() => setSelectedPlacedAssetId(null)}
+      >
         <PerspectiveCamera makeDefault position={[4, 3, 6]} fov={cameraFov} near={cameraNear} far={cameraFar} />
         <CameraController />
         
         {/* Cinematic Lighting Setup */}
         <ambientLight intensity={0.4 * exposure} />
         <spotLight 
-          position={[10, 15, 10]} 
-          angle={0.3} 
-          penumbra={1} 
-          intensity={2 * exposure} 
+          position={[5, 10, 5]} 
+          angle={0.4} 
+          penumbra={0.5} 
+          intensity={1 * exposure} 
           castShadow 
           shadow-mapSize={[2048, 2048]}
         />
-        <pointLight position={[-10, -10, -10]} intensity={0.5 * exposure} />
+        <pointLight position={[-10, 10, -5]} intensity={0.3 * exposure} />
+        <pointLight position={[0, -5, 5]} intensity={0.1 * exposure} />
         
         <Suspense fallback={null}>
           {mode === 'fashion' && (sceneObjectVisibility['main_garment'] ?? true) && (
@@ -609,46 +730,25 @@ export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1,
 
           {/* Render Placed Assets */}
           {placedAssets.map((pa) => (sceneObjectVisibility[pa.id] ?? true) && (
-            <group 
-              key={pa.id} 
-              position={pa.position}
-              rotation={pa.rotation}
-              scale={pa.scale}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedPlacedAssetId(pa.id);
-              }}
-            >
-              <AdvancedModel url={pa.asset.url} />
-              {!isRendering && selectedPlacedAssetId === pa.id && (
-                <TransformControls 
-                  ref={transformRef}
-                  object={undefined} 
-                  mode={transformMode}
-                  onMouseUp={onTransform}
-                  size={0.6}
-                  translationSnap={snapToGrid ? (gridSize / 20 * 0.5) : null}
-                />
-              )}
-              {!isRendering && (
-                <Html position={[0, 1, 0]}>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removePlacedAsset(pa.id);
-                    }}
-                    className={`bg-black/60 border border-white/10 rounded-full p-1 transition-all
-                      ${selectedPlacedAssetId === pa.id ? 'text-gold border-gold scale-110' : 'text-white/40 hover:text-red-500 opacity-0 group-hover:opacity-100'}
-                    `}
-                  >
-                    <X size={10} />
-                  </button>
-                </Html>
-              )}
-            </group>
+            <PlacedAssetItem 
+              key={pa.id}
+              pa={pa}
+              isSelected={selectedPlacedAssetId === pa.id}
+              transformMode={transformMode}
+              snapToGrid={snapToGrid}
+              gridSize={gridSize}
+              updatePlacedAsset={updatePlacedAsset}
+              removePlacedAsset={removePlacedAsset}
+              setSelectedPlacedAssetId={setSelectedPlacedAssetId}
+              isRendering={isRendering}
+            />
           ))}
           
-          <Environment preset={environment as any} blur={0.8} />
+          <Environment 
+            preset={environment as any} 
+            blur={0.8} 
+            background={showEnvironmentBackground} 
+          />
           
           {showGrid && !isRendering && (
             <Grid
@@ -682,13 +782,13 @@ export const Scene3D = ({ exposure = 1, environment: environmentProp, scale = 1,
           {!isRendering && (
             <EffectComposer>
               <Bloom 
-                luminanceThreshold={1} 
+                luminanceThreshold={1.2} 
                 mipmapBlur 
-                intensity={0.5} 
-                radius={0.4} 
+                intensity={0.4} 
+                radius={0.3} 
               />
-              <Noise opacity={0.02} />
-              <Vignette eskil={false} offset={0.1} darkness={1.1} />
+              <Noise opacity={0.015} />
+              <Vignette eskil={false} offset={0.1} darkness={1} />
             </EffectComposer>
           )}
         </Suspense>

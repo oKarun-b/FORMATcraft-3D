@@ -25,6 +25,8 @@ export const PropertiesPanel = () => {
     removePlacedAsset,
     environment,
     setEnvironment,
+    showEnvironmentBackground,
+    setShowEnvironmentBackground,
     environmentIntensity,
     setEnvironmentIntensity,
     gridSize,
@@ -353,23 +355,32 @@ export const PropertiesPanel = () => {
             <div className="space-y-8">
                <PropertySection title="Environment Lighting">
                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-1 px-1">
-                      {(['studio', 'city', 'park', 'lobby'] as const).map(env => (
+                    <div className="grid grid-cols-3 gap-1 px-1">
+                      {(['studio', 'city', 'park', 'lobby', 'apartment', 'forest', 'dawn', 'sunset', 'warehouse'] as const).map(env => (
                         <button 
                           key={env}
                           onClick={() => setEnvironment(env)}
-                          className={`py-1.5 rounded-sm text-[8px] font-mono border transition-all uppercase ${environment === env ? 'bg-gold/10 border-gold text-gold shadow-[0_0_10px_rgba(212,175,55,0.1)]' : 'bg-white/5 border-white/5 text-white/20 hover:border-white/10'}`}
+                          className={`py-1.5 rounded-sm text-[7px] font-mono border transition-all uppercase ${environment === env ? 'bg-gold/10 border-gold text-gold shadow-[0_0_10px_rgba(212,175,55,0.1)]' : 'bg-white/5 border-white/5 text-white/20 hover:border-white/10'}`}
                         >
                           {env}
                         </button>
                       ))}
                     </div>
 
-                    <RangeControl 
-                      label="HDRI Intensity" 
-                      value={Math.round(environmentIntensity * 50)} 
-                      onChange={(v) => setEnvironmentIntensity(v / 50)} 
-                    />
+                    <div className="space-y-4">
+                      <ToggleControl 
+                        label="Draw Background" 
+                        active={showEnvironmentBackground} 
+                        onClick={() => setShowEnvironmentBackground(!showEnvironmentBackground)} 
+                        icon={<Sun size={10} />}
+                      />
+                      
+                      <RangeControl 
+                        label="HDRI Intensity" 
+                        value={Math.round(environmentIntensity * 50)} 
+                        onChange={(v) => setEnvironmentIntensity(v / 50)} 
+                      />
+                    </div>
                  </div>
                </PropertySection>
 

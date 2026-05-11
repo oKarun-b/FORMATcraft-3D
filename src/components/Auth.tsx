@@ -27,7 +27,13 @@ export const Auth = ({ onClose }: { onClose: () => void }) => {
     e.preventDefault();
 
     if (!isConfigured) {
-      setError('Studio Authentication is currently offline. Please configure your environment variables.');
+      // Mock Auth for Demo/Preview when Supabase is not configured
+      setIsLoading(true);
+      setTimeout(() => {
+        setIsLoading(false);
+        onClose();
+        console.log('Mock login successful');
+      }, 1000);
       return;
     }
 
@@ -62,7 +68,12 @@ export const Auth = ({ onClose }: { onClose: () => void }) => {
 
   const handleSocialAuth = async (provider: 'google' | 'github') => {
     if (!isConfigured) {
-      setError('Social Authentication is currently offline. Please configure your environment variables.');
+      // Mock Social Auth
+      setIsLoading(true);
+      setTimeout(() => {
+        setIsLoading(false);
+        onClose();
+      }, 1000);
       return;
     }
 
@@ -214,10 +225,17 @@ export const Auth = ({ onClose }: { onClose: () => void }) => {
                   <span className="relative px-4 bg-[#080808] text-[9px] font-mono text-white/20 uppercase tracking-[0.3em]">Or continue with</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-10">
+                <div className="grid grid-cols-2 gap-4 mb-8">
                   <SocialButton onClick={() => handleSocialAuth('google')} icon={<Chrome size={18} />} label="Google" />
                   <SocialButton onClick={() => handleSocialAuth('github')} icon={<Github size={18} />} label="Github" />
                 </div>
+
+                <button 
+                  onClick={onClose}
+                  className="w-full py-4 border border-gold/20 hover:border-gold/40 rounded-full text-[10px] font-mono text-gold/60 hover:text-gold uppercase tracking-[0.2em] transition-all mb-10"
+                >
+                  Continue in Offline Mode
+                </button>
 
                 <p className="text-center text-xs text-white/40 font-light">
                   New to the craft? <button onClick={() => setView('signup')} className="text-gold font-bold hover:underline">Create an account</button>

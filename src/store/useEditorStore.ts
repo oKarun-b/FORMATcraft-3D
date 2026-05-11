@@ -57,8 +57,10 @@ interface EditorState {
   snapToGrid: boolean;
   setSnapToGrid: (snap: boolean) => void;
   // Scene Environment
-  environment: 'studio' | 'city' | 'park' | 'lobby';
-  setEnvironment: (env: 'studio' | 'city' | 'park' | 'lobby') => void;
+  environment: 'studio' | 'city' | 'park' | 'lobby' | 'apartment' | 'forest' | 'dawn' | 'sunset' | 'warehouse';
+  setEnvironment: (env: 'studio' | 'city' | 'park' | 'lobby' | 'apartment' | 'forest' | 'dawn' | 'sunset' | 'warehouse') => void;
+  showEnvironmentBackground: boolean;
+  setShowEnvironmentBackground: (show: boolean) => void;
   environmentIntensity: number;
   setEnvironmentIntensity: (v: number) => void;
   // Rendering Settings
@@ -80,9 +82,24 @@ interface EditorState {
   isOutlinerOpen: boolean;
   setIsOutlinerOpen: (open: boolean) => void;
   // Placed Assets for 3D Scene
-  placedAssets: { id: string, assetId: string, position: [number, number, number], rotation: [number, number, number], scale: [number, number, number], asset: any }[];
+  placedAssets: { 
+    id: string, 
+    assetId: string, 
+    position: [number, number, number], 
+    rotation: [number, number, number], 
+    scale: [number, number, number], 
+    roughness: number,
+    metalness: number,
+    asset: any 
+  }[];
   addPlacedAsset: (asset: any, position: [number, number, number]) => void;
-  updatePlacedAsset: (id: string, updates: Partial<{ position: [number, number, number], rotation: [number, number, number], scale: [number, number, number] }>) => void;
+  updatePlacedAsset: (id: string, updates: Partial<{ 
+    position: [number, number, number], 
+    rotation: [number, number, number], 
+    scale: [number, number, number],
+    roughness: number,
+    metalness: number
+  }>) => void;
   removePlacedAsset: (id: string) => void;
   selectedPlacedAssetId: string | null;
   setSelectedPlacedAssetId: (id: string | null) => void;
@@ -161,6 +178,8 @@ export const useEditorStore = create<EditorState>()(
       setSnapToGrid: (snapToGrid) => set({ snapToGrid }),
       environment: 'studio',
       setEnvironment: (environment) => set({ environment }),
+      showEnvironmentBackground: false,
+      setShowEnvironmentBackground: (showEnvironmentBackground) => set({ showEnvironmentBackground }),
       environmentIntensity: 1,
       setEnvironmentIntensity: (environmentIntensity) => set({ environmentIntensity }),
       isRendering: false,
@@ -187,6 +206,8 @@ export const useEditorStore = create<EditorState>()(
             position, 
             rotation: [0, 0, 0], 
             scale: [0.5, 0.5, 0.5], 
+            roughness: 0.5,
+            metalness: 0.2,
             asset 
           }],
           selectedPlacedAssetId: id
@@ -261,6 +282,7 @@ export const useEditorStore = create<EditorState>()(
           setShowGrid,
           setGridSize,
           setEnvironment,
+          setShowEnvironmentBackground,
           setEnvironmentIntensity,
           setIsRendering,
           setRenderSamples,

@@ -19,15 +19,23 @@ export const StudioRenderer = () => {
   }, [gl]);
 
   useEffect(() => {
-    if (pathTracer && scene && camera) {
-      try {
-        pathTracer.setScene(scene, camera);
-        pathTracer.reset();
-      } catch (err) {
-        console.error('PathTracer setScene error:', err);
-      }
+    let timeoutId: any;
+    
+    if (pathTracer && scene && camera && isRendering) {
+      // Small delay to ensure helpers like TransformControls and Html 
+      // are unmounted before path tracer traverses the scene
+      timeoutId = setTimeout(() => {
+        try {
+          pathTracer.setScene(scene, camera);
+          pathTracer.reset();
+        } catch (err) {
+          console.error('PathTracer setScene error:', err);
+        }
+      }, 100);
     }
-  }, [pathTracer, scene, camera]);
+    
+    return () => clearTimeout(timeoutId);
+  }, [pathTracer, scene, camera, isRendering]);
 
   useFrame(() => {
     if (pathTracer && isRendering) {
